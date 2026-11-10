@@ -232,6 +232,7 @@ function initGalleries() {
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('order-form');
   const btn = document.getElementById('submit-btn');
+  let sending = false; // declarado antes de selectProduct (evita ReferenceError con pedidos abiertos)
   const preview = document.getElementById('state-preview');
   const success = document.getElementById('state-success');
   const previewList = document.getElementById('preview-list');
@@ -423,7 +424,6 @@ document.addEventListener('DOMContentLoaded', () => {
     previewWa.href = whatsAppUrl(buildWhatsAppMessage(data));
   };
 
-  let sending = false;
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (sending) return;
