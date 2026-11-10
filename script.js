@@ -23,7 +23,7 @@ const PRODUCT = {
  * Con ambos en false los pedidos están CERRADOS: el formulario queda desactivado y no recoge datos.
  * Prueba interna del formulario y del resumen: abrir la página con ?demo=1 (no envía ni guarda nada).
  */
-const ORDERS_ENABLED = false;
+const ORDERS_ENABLED = true;
 const WHATSAPP_ORDERS_ENABLED = false;
 // URL pública de la Edge Function (no es un secreto). Solo se usa si ORDERS_ENABLED = true.
 const ORDER_ENDPOINT = 'https://kavacbwosbjuaokflplm.supabase.co/functions/v1/crear-pedido';
