@@ -1,4 +1,4 @@
-/* Enmy Trends RD · Landing multiproducto v14 */
+/* Enmy Trends RD · Tienda v15: una página por producto */
 'use strict';
 
 // Número de WhatsApp del negocio en formato internacional, sin "+" ni guiones (wa.me)
@@ -6,7 +6,8 @@ const WHATSAPP_NUMBER = '18296540649'; // +1 (829) 654-0649
 
 /* ---------- Catálogo (fuente única del front) ----------
  * El HTML trae el mismo texto y precio como respaldo si JS no carga.
- * OJO: <title>, meta description, og:* y twitter:* y assets/og-image.jpg NO se actualizan solos.
+ * OJO: <title>, meta description, og:*, twitter:* y JSON-LD de cada página NO se actualizan solos.
+ * v15: cada página de producto fija su producto con <body data-producto="...">. La portada no tiene formulario.
  * El servidor de crear-pedido (v20) admite producto_id led-auto-rgb (1499),
  * parlante-rgb-micro (1299) y masajeador-facial (1199). El navegador NUNCA envía el precio:
  * el servidor lo calcula.
@@ -20,7 +21,7 @@ const PRODUCTS = {
     price: 1499,
     summaryMeta: '3 metros · envío incluido',
     stickyMeta: 'Cinta LED · Envío incluido',
-    photo: 'assets/cinta-led-carro-interior.webp',
+    photo: '/assets/cinta-led-carro-interior.webp',
     photoW: 800,
     photoH: 638
   },
@@ -32,7 +33,7 @@ const PRODUCTS = {
     price: 1299,
     summaryMeta: 'Con micrófono · envío incluido',
     stickyMeta: 'Parlante RGB · Envío incluido',
-    photo: 'assets/parlante-rgb-04.webp',
+    photo: '/assets/parlante-rgb-04.webp',
     photoW: 499,
     photoH: 500
   },
@@ -44,13 +45,15 @@ const PRODUCTS = {
     price: 1199,
     summaryMeta: 'Color rosado · envío incluido',
     stickyMeta: 'Masajeador · Envío incluido',
-    photo: 'assets/masajeador-01.webp',
+    photo: '/assets/masajeador-01.webp',
     photoW: 800,
     photoH: 624
   }
 };
 const PRODUCT_IDS = Object.keys(PRODUCTS);
-const DEFAULT_PRODUCT_ID = 'led-auto-rgb';
+// Producto de la página: lo fija <body data-producto="..."> (solo en las páginas de producto)
+const PAGE_PRODUCT_ID = (document.body && PRODUCTS[document.body.dataset.producto]) ? document.body.dataset.producto : null;
+const DEFAULT_PRODUCT_ID = PAGE_PRODUCT_ID || 'led-auto-rgb';
 const CURRENCY = 'RD$';
 const formatPrice = (n) => `${CURRENCY}${n.toLocaleString('en-US')}`;
 
@@ -95,8 +98,8 @@ function getFormData(form) {
   const f = new FormData(form);
   // Igual que el servidor: normaliza a NFC y quita espacios al principio y al final (además une espacios repetidos)
   const clean = (k) => String(f.get(k) || '').normalize('NFC').replace(/\s+/g, ' ').trim();
-  const picked = document.querySelector('input[name="producto_id"]:checked');
-  const producto_id = (picked && PRODUCTS[picked.value] ? picked.value : selectedProductId);
+  // v15: sin selector; el producto es siempre el de la página (data-producto del <body>)
+  const producto_id = PAGE_PRODUCT_ID || selectedProductId;
   return {
     nombre: clean('nombre'),
     whatsapp: clean('whatsapp'),
@@ -230,7 +233,22 @@ function initGalleries() {
 
 /* ---------- UI ---------- */
 document.addEventListener('DOMContentLoaded', () => {
+  const yearEl0 = document.getElementById('year');
+  if (yearEl0) yearEl0.textContent = new Date().getFullYear();
+  // Instagram: solo se muestra si INSTAGRAM_URL está configurada y tiene un formato válido
+  const igItem = document.getElementById('instagram-item');
+  const igLink = document.getElementById('instagram-link');
+  if (igItem && igLink && INSTAGRAM_URL_RE.test(INSTAGRAM_URL)) { igLink.href = INSTAGRAM_URL; igItem.hidden = false; }
+  // Todos los enlaces de contacto por WhatsApp (preguntas) usan el número central, siempre visibles
+  document.querySelectorAll('a.wa-link').forEach((a) => { a.href = whatsAppUrl(''); });
+  initGalleries();
+
   const form = document.getElementById('order-form');
+  // Portada (catálogo): no hay formulario. Los enlaces viejos de la página de la cinta (#producto) van a su página.
+  if (!form || !PAGE_PRODUCT_ID) {
+    if (location.hash === '#producto') location.replace('/cinta-led/');
+    return;
+  }
   const btn = document.getElementById('submit-btn');
   let sending = false; // declarado antes de selectProduct (evita ReferenceError con pedidos abiertos)
   const preview = document.getElementById('state-preview');
@@ -239,8 +257,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const previewWa = document.getElementById('preview-wa');
   const provSel = document.getElementById('f-provincia');
   const munSel = document.getElementById('f-municipio');
-  const yearEl = document.getElementById('year');
-  if (yearEl) yearEl.textContent = new Date().getFullYear();
 
   const summaryPhoto = document.getElementById('summary-photo');
   const summaryName = document.getElementById('summary-name');
@@ -253,10 +269,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!PRODUCTS[id]) return;
     selectedProductId = id;
     const p = currentProduct();
-    document.querySelectorAll('input[name="producto_id"]').forEach((r) => { r.checked = r.value === id; });
-    document.querySelectorAll('.product-card').forEach((card) => {
-      card.classList.toggle('is-selected', card.id === `producto-${id}`);
-    });
     if (summaryPhoto) {
       summaryPhoto.src = p.photo;
       summaryPhoto.width = p.photoW;
@@ -276,14 +288,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
-
-  // Instagram: solo se muestra si INSTAGRAM_URL está configurada y tiene un formato válido
-  const igItem = document.getElementById('instagram-item');
-  const igLink = document.getElementById('instagram-link');
-  if (igItem && igLink && INSTAGRAM_URL_RE.test(INSTAGRAM_URL)) { igLink.href = INSTAGRAM_URL; igItem.hidden = false; }
-
-  // Todos los enlaces de contacto por WhatsApp (preguntas) usan el número central, siempre visibles
-  document.querySelectorAll('a.wa-link').forEach((a) => { a.href = whatsAppUrl(''); });
 
   // Modo de pedidos
   const DEMO_PARAM = new URLSearchParams(location.search).get('demo') === '1';
@@ -338,8 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('preview-note').textContent = 'Esto es una demostración interna: este pedido no se envió ni se guardó. Los pedidos abren muy pronto.';
   }
 
-  initGalleries();
-  selectProduct(DEFAULT_PRODUCT_ID);
+  selectProduct(PAGE_PRODUCT_ID);
 
   document.querySelectorAll('[data-select-product]').forEach((a) => {
     a.addEventListener('click', (e) => {
@@ -348,9 +351,6 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       selectProduct(id, { scroll: true });
     });
-  });
-  document.querySelectorAll('input[name="producto_id"]').forEach((r) => {
-    r.addEventListener('change', () => { if (r.checked) selectProduct(r.value); });
   });
 
   // Municipio dependiente de la provincia (mismo catálogo que valida la función)
