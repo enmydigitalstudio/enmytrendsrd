@@ -1,34 +1,72 @@
-/* Enmy Trends RD · Landing */
+/* Enmy Trends RD · Landing multiproducto v14 */
 'use strict';
 
 // Número de WhatsApp del negocio en formato internacional, sin "+" ni guiones (wa.me)
 const WHATSAPP_NUMBER = '18296540649'; // +1 (829) 654-0649
-/* ---------- Datos del producto (fuente única) ----------
- * Los elementos con data-product="name" / "priceDisplay" en index.html se llenan desde aquí
- * (el HTML trae el mismo texto como respaldo si JS no carga).
- * OJO: <title>, meta description, og:* y twitter:* y assets/og-image.jpg NO se actualizan solos:
- * si cambias el precio o el nombre, cámbialos también a mano en index.html (y regenera la og-image).
+
+/* ---------- Catálogo (fuente única del front) ----------
+ * El HTML trae el mismo texto y precio como respaldo si JS no carga.
+ * OJO: <title>, meta description, og:* y twitter:* y assets/og-image.jpg NO se actualizan solos.
+ * El servidor de crear-pedido (v20) admite producto_id led-auto-rgb (1499),
+ * parlante-rgb-micro (1299) y masajeador-facial (1199). El navegador NUNCA envía el precio:
+ * el servidor lo calcula.
  */
-const PRODUCT = {
-  name: 'Cinta de luz RGB para carro',
-  orderName: 'Cinta de luz RGB para carro (3 metros)',
-  sku: 'TLC-001',
-  price: 1499,
-  currency: 'RD$',
-  get priceDisplay() { return `${this.currency}${this.price.toLocaleString('en-US')}`; }
+const PRODUCTS = {
+  'led-auto-rgb': {
+    id: 'led-auto-rgb',
+    name: 'Cinta LED para carro 3 m',
+    orderName: 'Cinta LED para carro (3 metros)',
+    sku: 'TLC-001',
+    price: 1499,
+    summaryMeta: '3 metros · envío incluido',
+    stickyMeta: 'Cinta LED · Envío incluido',
+    photo: 'assets/cinta-led-carro-interior.webp',
+    photoW: 800,
+    photoH: 638
+  },
+  'parlante-rgb-micro': {
+    id: 'parlante-rgb-micro',
+    name: 'Mini parlante Bluetooth RGB con micrófono',
+    orderName: 'Mini parlante Bluetooth RGB con micrófono (karaoke)',
+    sku: 'MPM-001',
+    price: 1299,
+    summaryMeta: 'Con micrófono · envío incluido',
+    stickyMeta: 'Parlante RGB · Envío incluido',
+    photo: 'assets/parlante-rgb-04.webp',
+    photoW: 499,
+    photoH: 500
+  },
+  'masajeador-facial': {
+    id: 'masajeador-facial',
+    name: 'Masajeador facial de microcorriente',
+    orderName: 'Masajeador facial de microcorriente',
+    sku: 'MAS-001',
+    price: 1199,
+    summaryMeta: 'Color rosado · envío incluido',
+    stickyMeta: 'Masajeador · Envío incluido',
+    photo: 'assets/masajeador-01.webp',
+    photoW: 800,
+    photoH: 624
+  }
 };
+const PRODUCT_IDS = Object.keys(PRODUCTS);
+const DEFAULT_PRODUCT_ID = 'led-auto-rgb';
+const CURRENCY = 'RD$';
+const formatPrice = (n) => `${CURRENCY}${n.toLocaleString('en-US')}`;
+
+let selectedProductId = DEFAULT_PRODUCT_ID;
+const currentProduct = () => PRODUCTS[selectedProductId] || PRODUCTS[DEFAULT_PRODUCT_ID];
+
 /* ---------- Configuración de pedidos ----------
  * ORDERS_ENABLED          → true solo cuando la Edge Function `crear-pedido` esté probada y abierta en el servidor.
  * WHATSAPP_ORDERS_ENABLED → true para recibir pedidos enviándolos por WhatsApp (sin backend).
  * Con ambos en false los pedidos están CERRADOS: el formulario queda desactivado y no recoge datos.
  * Prueba interna del formulario y del resumen: abrir la página con ?demo=1 (no envía ni guarda nada).
  */
-const ORDERS_ENABLED = false;
+const ORDERS_ENABLED = true;
 const WHATSAPP_ORDERS_ENABLED = false;
 // URL pública de la Edge Function (no es un secreto). Solo se usa si ORDERS_ENABLED = true.
 const ORDER_ENDPOINT = 'https://kavacbwosbjuaokflplm.supabase.co/functions/v1/crear-pedido';
-// Identificador del producto que espera el servidor. El precio lo fija el servidor.
-const PRODUCT_ID = 'led-auto-rgb';
 // Site key PÚBLICA de Cloudflare Turnstile del dominio de producción (se configura al crear el widget).
 // Vacía = el widget no se muestra y no se carga ningún script de Cloudflare. Nunca poner aquí la secret key.
 const TURNSTILE_SITE_KEY = '0x4AAAAAAF6qQcdUZtt49bAr';
@@ -45,8 +83,6 @@ const LIMITS = { nombre: [3, 100], direccion: [8, 250], referencia: [0, 200] };
 // El servidor rechaza los signos < > y los caracteres de control en los textos
 const FORBIDDEN_CHARS = /[<>\u0000-\u001f\u007f]/;
 
-const formatPrice = (n) => `${PRODUCT.currency}${n.toLocaleString('en-US')}`; // = PRODUCT.priceDisplay para PRODUCT.price
-
 /** Normaliza un teléfono dominicano a 10 dígitos (8091234567) o devuelve null. */
 function normalizeDRPhone(raw) {
   let d = String(raw || '').replace(/\D/g, '');
@@ -59,19 +95,23 @@ function getFormData(form) {
   const f = new FormData(form);
   // Igual que el servidor: normaliza a NFC y quita espacios al principio y al final (además une espacios repetidos)
   const clean = (k) => String(f.get(k) || '').normalize('NFC').replace(/\s+/g, ' ').trim();
+  const picked = document.querySelector('input[name="producto_id"]:checked');
+  const producto_id = (picked && PRODUCTS[picked.value] ? picked.value : selectedProductId);
   return {
     nombre: clean('nombre'),
     whatsapp: clean('whatsapp'),
     provincia: clean('provincia'),
     municipio: clean('municipio'),
     direccion: clean('direccion'),
-    referencia: clean('referencia')
+    referencia: clean('referencia'),
+    producto_id
   };
 }
 
 /** Devuelve { valid, errors, data } con mensajes amigables. */
 function validateOrder(data) {
   const errors = {};
+  if (!PRODUCTS[data.producto_id]) errors.producto_id = 'Elige un producto.';
   if (data.nombre.length < LIMITS.nombre[0] || !/\s/.test(data.nombre)) errors.nombre = 'Escribe tu nombre y apellido.';
   else if (data.nombre.length > LIMITS.nombre[1]) errors.nombre = `Máximo ${LIMITS.nombre[1]} caracteres.`;
   const phone = normalizeDRPhone(data.whatsapp);
@@ -91,11 +131,12 @@ function validateOrder(data) {
 
 /** Mensaje de pedido listo para WhatsApp. */
 function buildWhatsAppMessage(data) {
+  const p = PRODUCTS[data.producto_id] || currentProduct();
   const lines = [
     '¡Hola, Enmy Trends RD! Quiero hacer este pedido:',
     '',
-    `• Producto: ${PRODUCT.orderName}`,
-    `• Precio: ${formatPrice(PRODUCT.price)} (envío incluido, pago al recibir)`,
+    `• Producto: ${p.orderName}`,
+    `• Precio: ${formatPrice(p.price)} (envío incluido, pago al recibir)`,
     '',
     `• Nombre: ${data.nombre}`,
     `• WhatsApp: ${normalizeDRPhone(data.whatsapp) ? prettyPhone(normalizeDRPhone(data.whatsapp)) : data.whatsapp}`,
@@ -117,7 +158,7 @@ function newIdempotencyKey() {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-/** Cuerpo exacto que acepta el servidor (campos extra → 400). */
+/** Cuerpo exacto que acepta el servidor (campos extra → 400). El precio lo fija el servidor. */
 function buildOrderPayload(data, captchaToken, idempotencyKey) {
   return {
     nombre_cliente: data.nombre,
@@ -126,7 +167,7 @@ function buildOrderPayload(data, captchaToken, idempotencyKey) {
     municipio: data.municipio,
     direccion: data.direccion,
     referencia: data.referencia,
-    producto_id: PRODUCT_ID,
+    producto_id: data.producto_id,
     cantidad: 1,
     captcha_token: captchaToken,
     idempotency_key: idempotencyKey
@@ -163,6 +204,30 @@ async function submitOrder(data, captchaToken, idempotencyKey) {
   }
 }
 
+function initGalleries() {
+  document.querySelectorAll('[data-gallery]').forEach((gal) => {
+    const main = gal.querySelector('[data-gallery-main]');
+    if (!main) return;
+    gal.querySelectorAll('[data-gallery-thumb]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const src = btn.getAttribute('data-src');
+        if (!src) return;
+        main.src = src;
+        const w = btn.getAttribute('data-width');
+        const h = btn.getAttribute('data-height');
+        if (w) main.width = Number(w);
+        if (h) main.height = Number(h);
+        const alt = btn.getAttribute('data-alt');
+        if (alt) main.alt = alt;
+        gal.querySelectorAll('[data-gallery-thumb]').forEach((b) => {
+          if (b === btn) b.setAttribute('aria-current', 'true');
+          else b.removeAttribute('aria-current');
+        });
+      });
+    });
+  });
+}
+
 /* ---------- UI ---------- */
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('order-form');
@@ -176,11 +241,40 @@ document.addEventListener('DOMContentLoaded', () => {
   const yearEl = document.getElementById('year');
   if (yearEl) yearEl.textContent = new Date().getFullYear();
 
-  // Datos del producto desde la configuración
-  document.querySelectorAll('[data-product]').forEach((el) => {
-    const v = PRODUCT[el.dataset.product];
-    if (v != null) el.textContent = v;
-  });
+  const summaryPhoto = document.getElementById('summary-photo');
+  const summaryName = document.getElementById('summary-name');
+  const summaryMeta = document.getElementById('summary-meta');
+  const summaryPrice = document.getElementById('summary-price');
+  const stickyPrice = document.getElementById('sticky-price');
+  const stickyMeta = document.getElementById('sticky-meta');
+
+  function selectProduct(id, { scroll } = {}) {
+    if (!PRODUCTS[id]) return;
+    selectedProductId = id;
+    const p = currentProduct();
+    document.querySelectorAll('input[name="producto_id"]').forEach((r) => { r.checked = r.value === id; });
+    document.querySelectorAll('.product-card').forEach((card) => {
+      card.classList.toggle('is-selected', card.id === `producto-${id}`);
+    });
+    if (summaryPhoto) {
+      summaryPhoto.src = p.photo;
+      summaryPhoto.width = p.photoW;
+      summaryPhoto.height = p.photoH;
+    }
+    if (summaryName) summaryName.textContent = p.name;
+    if (summaryMeta) summaryMeta.textContent = p.summaryMeta;
+    if (summaryPrice) summaryPrice.textContent = formatPrice(p.price);
+    if (stickyPrice) stickyPrice.textContent = formatPrice(p.price);
+    if (stickyMeta) stickyMeta.textContent = p.stickyMeta;
+    if (MODE === 'orders' && btn) {
+      SUBMIT_LABEL = `Confirmar mi pedido · ${formatPrice(p.price)}`;
+      if (!sending) btn.textContent = SUBMIT_LABEL;
+    }
+    if (scroll) {
+      const target = document.getElementById(MODE === 'closed' && !DEMO_PARAM ? 'orders-closed' : 'pedido');
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
 
   // Instagram: solo se muestra si INSTAGRAM_URL está configurada y tiene un formato válido
   const igItem = document.getElementById('instagram-item');
@@ -199,12 +293,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const foot = document.getElementById('form-foot');
   const submitError = document.getElementById('submit-error');
   const COPY = {
-    orders:  { btn: `Confirmar mi pedido · ${PRODUCT.priceDisplay}`, foot: 'Pagas al recibir. Te escribiremos por WhatsApp para confirmar antes de despachar.' },
+    orders:  { btn: `Confirmar mi pedido · ${formatPrice(currentProduct().price)}`, foot: 'Pagas al recibir. Te escribiremos por WhatsApp para confirmar antes de despachar.' },
     whatsapp:{ btn: 'Revisar y enviar por WhatsApp', foot: 'Pagas al recibir. Te confirmamos por WhatsApp antes de despachar.' },
     demo:    { btn: 'Ver resumen (demostración)', foot: 'Modo demostración interno: no se envía ni se guarda nada.' },
     closed:  { btn: 'Pedidos muy pronto', foot: 'Los pedidos en línea abren muy pronto.' }
   }[MODE];
-  const SUBMIT_LABEL = COPY.btn;
+  let SUBMIT_LABEL = COPY.btn;
   btn.textContent = SUBMIT_LABEL;
   foot.textContent = COPY.foot;
   fields.disabled = MODE === 'closed';
@@ -215,10 +309,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // solo cuando los pedidos están abiertos (orders / whatsapp) pasan a "Pedir ahora".
   const ORDERS_OPEN = MODE === 'orders' || MODE === 'whatsapp';
   const CTA_OPEN = {
-    nav:    { href: '#pedido', long: 'Pedir' },
-    hero:   { href: '#pedido', long: 'Pedir ahora · Paga al recibir', short: 'Pedir ahora' },
-    spec:   { href: '#pedido', long: 'Pedir ahora', short: 'Pedir ahora' },
-    sticky: { href: '#pedido', long: 'Pedir ahora · Paga al recibir', short: 'Pedir ahora' }
+    nav:     { href: '#pedido', long: 'Pedir' },
+    hero:    { href: '#pedido', long: 'Pedir ahora · Paga al recibir', short: 'Pedir ahora' },
+    spec:    { href: '#pedido', long: 'Pedir ahora', short: 'Pedir ahora' },
+    sticky:  { href: '#pedido', long: 'Pedir ahora · Paga al recibir', short: 'Pedir ahora' },
+    product: { href: '#pedido', long: 'Pedir', short: 'Pedir' }
   };
   if (MODE === 'demo') {
     // Prueba interna: el aviso está oculto, así que los botones van al formulario
@@ -241,6 +336,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('preview-eyebrow').textContent = 'DEMOSTRACIÓN';
     document.getElementById('preview-note').textContent = 'Esto es una demostración interna: este pedido no se envió ni se guardó. Los pedidos abren muy pronto.';
   }
+
+  initGalleries();
+  selectProduct(DEFAULT_PRODUCT_ID);
+
+  document.querySelectorAll('[data-select-product]').forEach((a) => {
+    a.addEventListener('click', (e) => {
+      const id = a.getAttribute('data-select-product');
+      if (!PRODUCTS[id]) return;
+      e.preventDefault();
+      selectProduct(id, { scroll: true });
+    });
+  });
+  document.querySelectorAll('input[name="producto_id"]').forEach((r) => {
+    r.addEventListener('change', () => { if (r.checked) selectProduct(r.value); });
+  });
 
   // Municipio dependiente de la provincia (mismo catálogo que valida la función)
   const fillMunicipios = () => {
@@ -274,14 +384,15 @@ document.addEventListener('DOMContentLoaded', () => {
     keys.forEach((k) => {
       const input = form.elements[k];
       const err = document.getElementById(`e-${k}`);
+      if (!input || !err) return;
       const field = input.closest('.field');
       if (errors[k]) {
         err.textContent = errors[k];
-        field.classList.add('invalid');
+        if (field) field.classList.add('invalid');
         input.setAttribute('aria-invalid', 'true');
       } else {
         err.textContent = '';
-        field.classList.remove('invalid');
+        if (field) field.classList.remove('invalid');
         input.removeAttribute('aria-invalid');
       }
     });
@@ -297,8 +408,9 @@ document.addEventListener('DOMContentLoaded', () => {
   form.addEventListener('change', recheck);
 
   const renderPreview = (data) => {
+    const p = PRODUCTS[data.producto_id] || currentProduct();
     const rows = [
-      ['Producto', `1 cinta · 3 metros`], ['Total', `${PRODUCT.priceDisplay} · envío incluido`],
+      ['Producto', p.orderName], ['Total', `${formatPrice(p.price)} · envío incluido`],
       ['Nombre', data.nombre], ['WhatsApp', prettyPhone(data.whatsapp)], ['Provincia', data.provincia],
       ['Municipio', data.municipio], ['Dirección', data.direccion]
     ];
