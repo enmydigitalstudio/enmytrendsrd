@@ -33,9 +33,9 @@ const PRODUCTS = {
     price: 1299,
     summaryMeta: 'Con micrófono · envío incluido',
     stickyMeta: 'Parlante RGB · Envío incluido',
-    photo: '/assets/parlante-rgb-04.webp',
-    photoW: 499,
-    photoH: 500
+    photo: '/assets/parlante-rgb-01.webp',
+    photoW: 788,
+    photoH: 800
   },
   'masajeador-facial': {
     id: 'masajeador-facial',
