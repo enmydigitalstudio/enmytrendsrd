@@ -91,7 +91,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="preload" as="image" href="/assets/logo-enmytrends.webp" type="image/webp">
   <link rel="preload" as="image" href="/assets/parlante-rgb-01.webp" type="image/webp">
-  <link rel="stylesheet" href="/styles.css?v=20261110e">
+  <link rel="stylesheet" href="/styles.css?v=20261111a">
 </head>
 <body data-producto="parlante-rgb-micro">
   <a class="skip-link" href="#contenido">Saltar al contenido</a>
@@ -284,6 +284,16 @@
           <form id="order-form" novalidate>
             <fieldset class="order-fields" id="order-fields" disabled>
             <legend class="sr-only">Datos de entrega</legend>
+            <div class="field qty-field">
+              <label id="qty-label" for="f-cantidad">Cantidad</label>
+              <div class="qty-control" role="group" aria-labelledby="qty-label">
+                <button type="button" class="qty-btn" id="qty-minus" aria-label="Quitar una unidad" aria-controls="f-cantidad" disabled>−</button>
+                <input id="f-cantidad" name="cantidad" type="number" inputmode="numeric" min="1" max="5" step="1" value="1" required autocomplete="off" aria-describedby="h-cantidad e-cantidad">
+                <button type="button" class="qty-btn" id="qty-plus" aria-label="Agregar una unidad" aria-controls="f-cantidad">+</button>
+              </div>
+              <p class="hint" id="h-cantidad">Máximo 5 unidades por pedido. Para más, <a class="wa-link" href="https://wa.me/18296540649" target="_blank" rel="noopener">escríbenos por WhatsApp</a>.</p>
+              <p class="error" id="e-cantidad" aria-live="polite"></p>
+            </div>
             <div class="field">
               <label for="f-nombre">Nombre completo</label>
               <input id="f-nombre" name="nombre" type="text" autocomplete="name" required minlength="3" maxlength="100" aria-describedby="e-nombre">
@@ -355,7 +365,12 @@
               <p class="error" id="e-referencia" aria-live="polite"></p>
             </div>
             <div class="field turnstile-slot" id="turnstile-slot" hidden></div>
-            <button type="submit" class="btn btn-primary btn-block btn-lg" id="submit-btn" aria-describedby="consent-note">Pedidos muy pronto</button>
+            <p class="order-total" id="order-total" aria-live="polite">
+              <span class="order-total-label">Total</span>
+              <strong id="order-total-value">RD$1,299</strong>
+              <span class="order-total-note">envío incluido</span>
+            </p>
+            <button type="submit" class="btn btn-primary btn-block btn-lg" id="submit-btn" aria-describedby="order-total consent-note">Pedidos muy pronto</button>
             <p class="privacy-note consent-note" id="consent-note">Al confirmar tu pedido aceptas que usemos los datos de este formulario para gestionarlo y entregarlo, y que los compartamos con el proveedor y la mensajería, según nuestro <a href="#privacidad">aviso de privacidad</a>.</p>
             <p class="error" id="submit-error" role="alert"></p>
             </fieldset>
@@ -466,7 +481,7 @@
     <a href="#pedido" class="btn btn-primary" data-cta="sticky"><span class="cta-long">Pedir ahora · Paga al recibir</span><span class="cta-short">Pedir ahora</span></a>
   </div>
 
-  <script src="/locations.js?v=20261110e" defer></script>
-  <script src="/script.js?v=20261110e" defer></script>
+  <script src="/locations.js?v=20261111a" defer></script>
+  <script src="/script.js?v=20261111a" defer></script>
 </body>
 </html>

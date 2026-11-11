@@ -1,4 +1,4 @@
-/* Enmy Trends RD · Tienda v15: una página por producto */
+/* Enmy Trends RD · Tienda v17: una página por producto, cantidad 1–5 */
 'use strict';
 
 // Número de WhatsApp del negocio en formato internacional, sin "+" ni guiones (wa.me)
@@ -56,6 +56,13 @@ const PAGE_PRODUCT_ID = (document.body && PRODUCTS[document.body.dataset.product
 const DEFAULT_PRODUCT_ID = PAGE_PRODUCT_ID || 'led-auto-rgb';
 const CURRENCY = 'RD$';
 const formatPrice = (n) => `${CURRENCY}${n.toLocaleString('en-US')}`;
+const MIN_CANTIDAD = 1;
+const MAX_CANTIDAD = 5;
+const clampCantidad = (raw) => {
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isInteger(n)) return MIN_CANTIDAD;
+  return Math.min(MAX_CANTIDAD, Math.max(MIN_CANTIDAD, n));
+};
 
 let selectedProductId = DEFAULT_PRODUCT_ID;
 const currentProduct = () => PRODUCTS[selectedProductId] || PRODUCTS[DEFAULT_PRODUCT_ID];
@@ -107,7 +114,8 @@ function getFormData(form) {
     municipio: clean('municipio'),
     direccion: clean('direccion'),
     referencia: clean('referencia'),
-    producto_id
+    producto_id,
+    cantidad: clampCantidad(f.get('cantidad'))
   };
 }
 
@@ -115,6 +123,9 @@ function getFormData(form) {
 function validateOrder(data) {
   const errors = {};
   if (!PRODUCTS[data.producto_id]) errors.producto_id = 'Elige un producto.';
+  if (!Number.isInteger(data.cantidad) || data.cantidad < MIN_CANTIDAD || data.cantidad > MAX_CANTIDAD) {
+    errors.cantidad = `Elige entre ${MIN_CANTIDAD} y ${MAX_CANTIDAD} unidades.`;
+  }
   if (data.nombre.length < LIMITS.nombre[0] || !/\s/.test(data.nombre)) errors.nombre = 'Escribe tu nombre y apellido.';
   else if (data.nombre.length > LIMITS.nombre[1]) errors.nombre = `Máximo ${LIMITS.nombre[1]} caracteres.`;
   const phone = normalizeDRPhone(data.whatsapp);
@@ -139,7 +150,8 @@ function buildWhatsAppMessage(data) {
     '¡Hola, Enmy Trends RD! Quiero hacer este pedido:',
     '',
     `• Producto: ${p.orderName}`,
-    `• Precio: ${formatPrice(p.price)} (envío incluido, pago al recibir)`,
+    `• Cantidad: ${data.cantidad || 1}`,
+    `• Total: ${formatPrice(p.price * (data.cantidad || 1))} (envío incluido, pago al recibir)`,
     '',
     `• Nombre: ${data.nombre}`,
     `• WhatsApp: ${normalizeDRPhone(data.whatsapp) ? prettyPhone(normalizeDRPhone(data.whatsapp)) : data.whatsapp}`,
@@ -171,7 +183,7 @@ function buildOrderPayload(data, captchaToken, idempotencyKey) {
     direccion: data.direccion,
     referencia: data.referencia,
     producto_id: data.producto_id,
-    cantidad: 1,
+    cantidad: clampCantidad(data.cantidad),
     captcha_token: captchaToken,
     idempotency_key: idempotencyKey
   };
@@ -264,6 +276,34 @@ document.addEventListener('DOMContentLoaded', () => {
   const summaryPrice = document.getElementById('summary-price');
   const stickyPrice = document.getElementById('sticky-price');
   const stickyMeta = document.getElementById('sticky-meta');
+  const qtyInput = document.getElementById('f-cantidad');
+  const qtyMinus = document.getElementById('qty-minus');
+  const qtyPlus = document.getElementById('qty-plus');
+  const orderTotalValue = document.getElementById('order-total-value');
+
+  function getCantidad() {
+    return clampCantidad(qtyInput ? qtyInput.value : MIN_CANTIDAD);
+  }
+
+  function updateOrderTotals() {
+    const p = currentProduct();
+    const total = formatPrice(p.price * getCantidad());
+    if (summaryPrice) summaryPrice.textContent = total;
+    if (orderTotalValue) orderTotalValue.textContent = total;
+    if (MODE === 'orders' && btn) {
+      SUBMIT_LABEL = `Confirmar mi pedido · ${total}`;
+      if (!sending) btn.textContent = SUBMIT_LABEL;
+    }
+  }
+
+  function setCantidad(raw) {
+    const qty = clampCantidad(raw);
+    if (qtyInput) qtyInput.value = String(qty);
+    if (qtyMinus) qtyMinus.disabled = qty <= MIN_CANTIDAD;
+    if (qtyPlus) qtyPlus.disabled = qty >= MAX_CANTIDAD;
+    updateOrderTotals();
+    return qty;
+  }
 
   function selectProduct(id, { scroll } = {}) {
     if (!PRODUCTS[id]) return;
@@ -276,13 +316,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (summaryName) summaryName.textContent = p.name;
     if (summaryMeta) summaryMeta.textContent = p.summaryMeta;
-    if (summaryPrice) summaryPrice.textContent = formatPrice(p.price);
     if (stickyPrice) stickyPrice.textContent = formatPrice(p.price);
     if (stickyMeta) stickyMeta.textContent = p.stickyMeta;
-    if (MODE === 'orders' && btn) {
-      SUBMIT_LABEL = `Confirmar mi pedido · ${formatPrice(p.price)}`;
-      if (!sending) btn.textContent = SUBMIT_LABEL;
-    }
+    // Se mantiene la cantidad; solo se recalcula el total.
+    updateOrderTotals();
     if (scroll) {
       const target = document.getElementById(MODE === 'closed' && !DEMO_PARAM ? 'orders-closed' : 'pedido');
       if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -343,6 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   selectProduct(PAGE_PRODUCT_ID);
+  setCantidad(getCantidad());
 
   document.querySelectorAll('[data-select-product]').forEach((a) => {
     a.addEventListener('click', (e) => {
@@ -352,6 +390,17 @@ document.addEventListener('DOMContentLoaded', () => {
       selectProduct(id, { scroll: true });
     });
   });
+
+  if (qtyMinus) qtyMinus.addEventListener('click', () => setCantidad(getCantidad() - 1));
+  if (qtyPlus) qtyPlus.addEventListener('click', () => setCantidad(getCantidad() + 1));
+  if (qtyInput) {
+    qtyInput.addEventListener('input', () => {
+      if (qtyInput.value === '') return;
+      if (/^\d+$/.test(qtyInput.value)) setCantidad(qtyInput.value);
+    });
+    qtyInput.addEventListener('change', () => setCantidad(qtyInput.value));
+    qtyInput.addEventListener('blur', () => setCantidad(qtyInput.value || MIN_CANTIDAD));
+  }
 
   // Municipio dependiente de la provincia (mismo catálogo que valida la función)
   const fillMunicipios = () => {
@@ -381,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Misma clave mientras los datos no cambien (doble clic / reenvío tras error de red)
   let lastKey = null, lastSig = '';
 
-  const showErrors = (errors, keys = ['nombre', 'whatsapp', 'provincia', 'municipio', 'direccion', 'referencia']) => {
+  const showErrors = (errors, keys = ['cantidad', 'nombre', 'whatsapp', 'provincia', 'municipio', 'direccion', 'referencia']) => {
     keys.forEach((k) => {
       const input = form.elements[k];
       const err = document.getElementById(`e-${k}`);
@@ -411,7 +460,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const renderPreview = (data) => {
     const p = PRODUCTS[data.producto_id] || currentProduct();
     const rows = [
-      ['Producto', p.orderName], ['Total', `${formatPrice(p.price)} · envío incluido`],
+      ['Producto', p.orderName], ['Cantidad', String(data.cantidad || 1)],
+      ['Total', `${formatPrice(p.price * (data.cantidad || 1))} · envío incluido`],
       ['Nombre', data.nombre], ['WhatsApp', prettyPhone(data.whatsapp)], ['Provincia', data.provincia],
       ['Municipio', data.municipio], ['Dirección', data.direccion]
     ];
