@@ -1,4 +1,4 @@
-/* Enmy Trends RD · Tienda v17: una página por producto, cantidad 1–5 */
+/* Enmy Trends RD · Tienda v18: una página por producto, cantidad 1–5, pedido en pantalla aparte (#pedido) */
 'use strict';
 
 // Número de WhatsApp del negocio en formato internacional, sin "+" ni guiones (wa.me)
@@ -262,6 +262,8 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
   const btn = document.getElementById('submit-btn');
+  let openCheckout = null; // v18: se define más abajo (pantalla de pedido)
+  let checkoutToTop = () => {};
   let sending = false; // declarado antes de selectProduct (evita ReferenceError con pedidos abiertos)
   const preview = document.getElementById('state-preview');
   const success = document.getElementById('state-success');
@@ -288,7 +290,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateOrderTotals() {
     const p = currentProduct();
     const total = formatPrice(p.price * getCantidad());
-    if (summaryPrice) summaryPrice.textContent = total;
+    // v18: el encabezado de la pantalla de pedido muestra el precio por unidad; el total va abajo y en el botón
+    if (summaryPrice) summaryPrice.textContent = formatPrice(p.price);
     if (orderTotalValue) orderTotalValue.textContent = total;
     if (MODE === 'orders' && btn) {
       SUBMIT_LABEL = `Confirmar mi pedido · ${total}`;
@@ -320,10 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (stickyMeta) stickyMeta.textContent = p.stickyMeta;
     // Se mantiene la cantidad; solo se recalcula el total.
     updateOrderTotals();
-    if (scroll) {
-      const target = document.getElementById(MODE === 'closed' && !DEMO_PARAM ? 'orders-closed' : 'pedido');
-      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    if (scroll && typeof openCheckout === 'function') openCheckout({ push: true });
   }
 
   // Modo de pedidos
@@ -492,13 +492,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const sig = JSON.stringify(data);
         if (sig !== lastSig) { lastSig = sig; lastKey = newIdempotencyKey(); }
         const res = await submitOrder(data, captchaToken(), lastKey);
-        if (res.ok) { form.hidden = true; success.hidden = false; success.focus(); }
+        if (res.ok) { form.hidden = true; success.hidden = false; checkoutToTop(); success.focus({ preventScroll: true }); }
         else {
           submitError.textContent = res.error || 'No pudimos registrar tu pedido. Inténtalo de nuevo o escríbenos por WhatsApp.';
           resetCaptcha(); // el token es de un solo uso
+          submitError.scrollIntoView({ block: 'nearest' });
         }
       } else {
-        form.hidden = true; renderPreview(data); preview.hidden = false; preview.focus();
+        form.hidden = true; renderPreview(data); preview.hidden = false; checkoutToTop(); preview.focus({ preventScroll: true });
       }
     } finally {
       sending = false; btn.disabled = false; btn.textContent = SUBMIT_LABEL;
@@ -509,14 +510,115 @@ document.addEventListener('DOMContentLoaded', () => {
     preview.hidden = true; form.hidden = false; form.elements.nombre.focus();
   });
 
-  // Barra fija: se oculta cuando el formulario está en pantalla
-  const bar = document.getElementById('sticky-bar');
-  const orderSection = document.getElementById('pedido');
-  if (bar && orderSection && 'IntersectionObserver' in window) {
-    new IntersectionObserver(([entry]) => {
-      bar.classList.toggle('is-hidden', entry.isIntersecting);
-      bar.setAttribute('aria-hidden', entry.isIntersecting ? 'true' : 'false');
-      bar.querySelector('a').tabIndex = entry.isIntersecting ? -1 : 0;
-    }, { threshold: 0.12 }).observe(orderSection);
+  /* ---------- v18: pantalla de pedido (sub página #pedido) ----------
+   * Los botones "Pedir" ya no bajan hasta el formulario: abren el pedido a pantalla completa (en el celular)
+   * o como panel centrado (en la computadora). Se guarda en el historial con #pedido: el botón o gesto de
+   * "atrás" del teléfono lo cierra y vuelve al producto, y /producto/#pedido lo abre directo.
+   * Sin JavaScript, la sección se ve normal al final de la página (ver <noscript> en el <head>).
+   */
+  const HASH = '#pedido';
+  const checkout = document.getElementById('pedido');
+  const backBtn = document.getElementById('checkout-back');
+  const pageParts = ['.skip-link', '.site-header', '#contenido', '.site-footer', '#sticky-bar']
+    .map((q) => document.querySelector(q)).filter(Boolean);
+  const root = document.documentElement;
+  const cleanUrl = () => location.pathname + location.search;
+  let isOpen = false, lastFocus = null, savedY = 0;
+
+  checkout.classList.add('is-enhanced');
+  checkout.setAttribute('role', 'dialog');
+  checkout.setAttribute('aria-modal', 'true');
+  checkout.hidden = true;
+  checkout.tabIndex = -1;
+
+  checkoutToTop = () => { checkout.scrollTop = 0; };
+
+  const lockPage = () => {
+    savedY = window.scrollY || 0;
+    document.body.style.top = `-${savedY}px`;
+    root.classList.add('checkout-open');
+    pageParts.forEach((el) => { el.inert = true; el.setAttribute('aria-hidden', 'true'); });
+  };
+  const unlockPage = () => {
+    root.classList.remove('checkout-open');
+    document.body.style.top = '';
+    pageParts.forEach((el) => { el.inert = false; el.removeAttribute('aria-hidden'); });
+    window.scrollTo({ top: savedY, left: 0, behavior: 'instant' });
+  };
+
+  function showCheckout() {
+    if (isOpen) return;
+    isOpen = true;
+    const ae = document.activeElement;
+    lastFocus = ae && ae !== document.body && !checkout.contains(ae) ? ae : null;
+    lockPage();
+    checkout.hidden = false;
+    checkout.classList.add('is-open');
+    checkoutToTop();
+    // Foco en el título (no en un campo) para que no salte el teclado del celular
+    const title = document.getElementById('pedido-title');
+    title.tabIndex = -1;
+    title.focus({ preventScroll: true });
   }
+  function hideCheckout() {
+    if (!isOpen) return;
+    isOpen = false;
+    checkout.classList.remove('is-open');
+    checkout.hidden = true;
+    unlockPage();
+    const back = lastFocus || document.querySelector('[data-cta="hero"]');
+    if (back && back.focus) back.focus({ preventScroll: true });
+  }
+  openCheckout = ({ push = true } = {}) => {
+    if (isOpen) return;
+    if (push && location.hash !== HASH) history.pushState({ checkout: true }, '', HASH);
+    showCheckout();
+  };
+  // Cerrar: si abrimos con pushState, se vuelve atrás en el historial (igual que el botón del teléfono)
+  const requestClose = () => {
+    if (!isOpen) return;
+    if (history.state && history.state.checkout) { history.back(); return; }
+    history.replaceState(null, '', cleanUrl());
+    hideCheckout();
+  };
+  const syncWithUrl = () => {
+    if (location.hash === HASH) showCheckout();
+    else hideCheckout();
+  };
+  window.addEventListener('popstate', syncWithUrl);
+  window.addEventListener('hashchange', syncWithUrl);
+
+  // Todos los botones "Pedir" de la página (encabezado, principal, ficha, barra fija)
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('a[href="#pedido"], a[href="#orders-closed"]');
+    if (!a || checkout.contains(a)) return;
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    openCheckout({ push: true });
+  });
+  checkout.querySelectorAll('[data-checkout-close]').forEach((el) => {
+    el.addEventListener('click', (e) => { e.preventDefault(); requestClose(); });
+  });
+  // Clic fuera del panel (solo se ve en la computadora): cierra; los datos escritos se quedan
+  checkout.addEventListener('click', (e) => { if (e.target === checkout) requestClose(); });
+  // Esc cierra; Tab no se sale de la pantalla de pedido
+  checkout.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); requestClose(); return; }
+    if (e.key !== 'Tab') return;
+    const items = [...checkout.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => el.offsetParent !== null || el === document.activeElement);
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && (document.activeElement === first || !checkout.contains(document.activeElement) || document.activeElement === checkout || document.activeElement.id === 'pedido-title')) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+
+  // Enlace directo /producto/#pedido (por ejemplo desde la portada): abre el pedido y deja el producto
+  // detrás en el historial, para que "atrás" cierre el pedido y no saque al cliente de la página.
+  if (location.hash === HASH) {
+    history.replaceState(null, '', cleanUrl());
+    history.pushState({ checkout: true }, '', HASH);
+    showCheckout();
+  }
+  if (backBtn) backBtn.setAttribute('href', cleanUrl());
 });
