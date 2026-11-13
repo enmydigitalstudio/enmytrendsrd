@@ -1,4 +1,4 @@
-/* Enmy Trends RD · Tienda v18: una página por producto, cantidad 1–5, pedido en pantalla aparte (#pedido) */
+/* Enmy Trends RD · Tienda v19: galería nueva de la cinta LED; pedido en pantalla aparte (#pedido) */
 'use strict';
 
 // Número de WhatsApp del negocio en formato internacional, sin "+" ni guiones (wa.me)
@@ -21,9 +21,9 @@ const PRODUCTS = {
     price: 1499,
     summaryMeta: '3 metros · envío incluido',
     stickyMeta: 'Cinta LED · Envío incluido',
-    photo: '/assets/cinta-led-carro-interior.webp',
-    photoW: 800,
-    photoH: 638
+    photo: '/assets/cinta-led-portada.webp',
+    photoW: 1024,
+    photoH: 1024
   },
   'parlante-rgb-micro': {
     id: 'parlante-rgb-micro',
