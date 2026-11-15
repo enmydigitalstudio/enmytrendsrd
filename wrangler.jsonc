@@ -1,0 +1,21 @@
+{
+  // Enmy Trends RD - Cloudflare Workers con Static Assets (solo archivos, sin codigo de Worker).
+  // Lo despliega Workers Builds SOLO desde la rama main (rama de produccion), con:
+  //   Build command:  node scripts/build-dist.mjs
+  //   Deploy command: npx wrangler@4.162.0 deploy
+  // El Worker publica UNICAMENTE ./dist, que arma scripts/build-dist.mjs con una lista cerrada
+  // de archivos publicos. Nada de la raiz del repo (README, scripts, configuracion, .git) se publica.
+  "$schema": "https://unpkg.com/wrangler@4.162.0/config-schema.json",
+  "name": "enmytrendsrd",
+  "compatibility_date": "2026-11-15",
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  // ANTES del cambio de DNS: workers.dev activo solo para comprobar el Worker de produccion
+  // (alli _headers pone noindex y bloquea por CSP la conexion a Supabase; el servidor ademas rechaza ese origen).
+  // EN EL CAMBIO DE DNS se aplica cloudflare/CUTOVER.md: workers_dev=false, preview_urls=false y el dominio.
+  "workers_dev": true,
+  "preview_urls": false
+}

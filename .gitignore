@@ -1,0 +1,4 @@
+# Salida del build (no se versiona)
+dist/
+.wrangler/
+node_modules/
