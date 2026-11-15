@@ -1,4 +1,4 @@
-/* Enmy Trends RD · Tienda v19: galería nueva de la cinta LED; pedido en pantalla aparte (#pedido) */
+/* Enmy Trends RD · Tienda v21: se añade la Lámpara LED Solar con Sensor de Movimiento; pedido en pantalla aparte (#pedido) */
 'use strict';
 
 // Número de WhatsApp del negocio en formato internacional, sin "+" ni guiones (wa.me)
@@ -8,9 +8,11 @@ const WHATSAPP_NUMBER = '18296540649'; // +1 (829) 654-0649
  * El HTML trae el mismo texto y precio como respaldo si JS no carga.
  * OJO: <title>, meta description, og:*, twitter:* y JSON-LD de cada página NO se actualizan solos.
  * v15: cada página de producto fija su producto con <body data-producto="...">. La portada no tiene formulario.
- * El servidor de crear-pedido (v20) admite producto_id led-auto-rgb (1499),
- * parlante-rgb-micro (1299) y masajeador-facial (1199). El navegador NUNCA envía el precio:
- * el servidor lo calcula.
+ * El servidor de crear-pedido (v23) admite producto_id led-auto-rgb (1499),
+ * parlante-rgb-micro (1299) y masajeador-facial (1199). lampara-solar-sensor (1499)
+ * está en esta página, pero el catálogo cerrado del servidor todavía no lo incluye:
+ * un pedido real de la lámpara sería rechazado hasta añadirla a CATALOG en
+ * validation.ts y redesplegar. El navegador NUNCA envía el precio: el servidor lo calcula.
  */
 const PRODUCTS = {
   'led-auto-rgb': {
@@ -48,6 +50,18 @@ const PRODUCTS = {
     photo: '/assets/masajeador-01.webp',
     photoW: 800,
     photoH: 624
+  },
+  'lampara-solar-sensor': {
+    id: 'lampara-solar-sensor',
+    name: 'Lámpara LED Solar con Sensor de Movimiento',
+    orderName: 'Lámpara LED Solar con Sensor de Movimiento',
+    sku: 'LAM-001',
+    price: 1499,
+    summaryMeta: 'Uso exterior · envío incluido',
+    stickyMeta: 'Lámpara solar · Envío incluido',
+    photo: '/assets/lampara-solar-portada.webp',
+    photoW: 1024,
+    photoH: 1024
   }
 };
 const PRODUCT_IDS = Object.keys(PRODUCTS);
